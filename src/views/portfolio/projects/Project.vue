@@ -26,15 +26,13 @@
                 </b-col>
               </b-row>
             </div>
-            <div class="text-muted font-xs">
-              <span class="text-lowercase font-weight-bold">
-                <span v-for="tag in project.tags">
-                  <b-badge :to="{name: 'Projects', query: {'tag': tag.name}}" variant="tag">{{ tag.name }}</b-badge>
-                </span>
+            <div class="text-muted text-lowercase font-weight-bold font-xs">
+              <span v-for="tag in project.tags">
+                <b-badge :to="{name: 'Projects', query: {'tag': tag.name}}" variant="tag">{{ tag.name }}</b-badge>
               </span>
             </div>
           </b-col>
-          <b-col md="auto">
+          <b-col>
             <b-row class="d-none d-md-flex float-right">
               <vue-easy-pie-chart style="margin-right: 1rem"
                                   :bar-color="severityCritical"
@@ -101,16 +99,7 @@
         </b-row>
       </b-card-body>
       <div id="project-info-footer" slot="footer">
-        <b-row>
-          <b-col>
-            <b-link class="font-weight-bold font-xs btn-block text-muted" @click="initializeProjectDetailsModal">{{ $t('message.view_details') }} <i class="fa fa-angle-right font-lg"></i></b-link>
-          </b-col>
-          <b-col v-if="project.externalReferences" md="auto">
-            <b-row class="d-none d-md-flex float-right">
-              <ExternalReferencesDropdown :externalReferences="project.externalReferences" />
-            </b-row>
-          </b-col>
-        </b-row>
+        <b-link class="font-weight-bold font-xs btn-block text-muted" @click="initializeProjectDetailsModal">{{ $t('message.view_details') }} <i class="fa fa-angle-right float-right font-lg"></i></b-link>
       </div>
     </b-card>
     <b-tabs class="body-bg-color" style="border-left: 0; border-right:0; border-top:0 ">
@@ -120,7 +109,7 @@
       </b-tab>
       <b-tab ref="components" @click="routeTo('components')">
         <template v-slot:title><i class="fa fa-cubes"></i> {{ $t('message.components') }} <b-badge variant="tab-total">{{ totalComponents }}</b-badge></template>
-        <project-components :key="this.uuid" :uuid="this.uuid" :project="this.project" v-on:total="totalComponents = $event" />
+        <project-components :key="this.uuid" :uuid="this.uuid" v-on:total="totalComponents = $event" />
       </b-tab>
       <b-tab ref="services" @click="routeTo('services')">
         <template v-slot:title><i class="fa fa-exchange"></i> {{ $t('message.services') }} <b-badge variant="tab-total">{{ totalServices }}</b-badge></template>
@@ -170,7 +159,6 @@
   import ProjectFindings from "./ProjectFindings";
   import ProjectPolicyViolations from "./ProjectPolicyViolations";
   import ProjectEpss from "./ProjectEpss";
-  import ExternalReferencesDropdown from "../../components/ExternalReferencesDropdown.vue";
 
   export default {
     mixins: [permissionsMixin],
@@ -188,8 +176,7 @@
       ProjectDashboard,
       PortfolioWidgetRow,
       VueEasyPieChart,
-      ProjectEpss,
-      ExternalReferencesDropdown
+      ProjectEpss
     },
     title: '',
     computed: {
@@ -218,6 +205,7 @@
         currentLow: 0,
         currentUnassigned: 0,
         currentRiskScore: 0,
+        availableProjectVersions: [],
         totalComponents: 0,
         totalServices: 0,
         totalDependencyGraphs: 0,
@@ -247,14 +235,22 @@
           }
         }).then((response) => {
           this.project = response.data;
-          this.currentCritical = common.valueWithDefault(this.project.metrics.critical, 0);
-          this.currentHigh = common.valueWithDefault(this.project.metrics.high, 0);
-          this.currentMedium = common.valueWithDefault(this.project.metrics.medium, 0);
-          this.currentLow = common.valueWithDefault(this.project.metrics.low, 0);
-          this.currentUnassigned = common.valueWithDefault(this.project.metrics.unassigned, 0);
-          this.currentRiskScore = common.valueWithDefault(this.project.metrics.inheritedRiskScore, 0);
+          let projectVersionsUrl = `${this.$api.BASE_URL}/${this.$api.URL_PROJECT}?offset=0&limit=10&excludeInactive=true&name=` + encodeURIComponent(this.project.name);
+          this.axios.get(projectVersionsUrl).then((response) => {
+            this.availableProjectVersions = response.data;
+          });
           EventBus.$emit('addCrumb', this.projectLabel);
           this.$title = this.projectLabel;
+        });
+
+        let metricsUrl = `${this.$api.BASE_URL}/${this.$api.URL_METRICS}/project/${this.uuid}/current`;
+        this.axios.get(metricsUrl).then((response) => {
+          this.currentCritical = common.valueWithDefault(response.data.critical, 0);
+          this.currentHigh = common.valueWithDefault(response.data.high, 0);
+          this.currentMedium = common.valueWithDefault(response.data.medium, 0);
+          this.currentLow = common.valueWithDefault(response.data.low, 0);
+          this.currentUnassigned = common.valueWithDefault(response.data.unassigned, 0);
+          this.currentRiskScore = common.valueWithDefault(response.data.inheritedRiskScore, 0);
         });
       },
       initializeProjectDetailsModal: function () {
